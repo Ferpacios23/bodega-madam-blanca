@@ -1,0 +1,22 @@
+1. tienes que estar conectado a internet para que los iconos del navbar te funcionen correctamente 
+
+2. La base de datos esta en la carpeta bd
+
+3. el index.php en estos mometos solo esta estatico 
+
+4. lo que esta totalmente funcional es tienda.php por que es la cual se escogen los productos y despues
+se agregan al carrito, el busacador de productos esta total mente funsional 
+
+5. el admin esta toatalmente funcional, si subes un producto desde el admin se cargara en el aprertado de tienda 
+en estos momentos contamos con un error ya que en tienda.php no se muestran la imagenes subidas desde al admin toca 
+organizarlo mas adelante
+
+Para ingresar al admin el correo es: admin@gmail.com
+Para ingresar al admin la contraseña es: admin
+
+en el admin se puede crear roles, subir productos, mirar pedidos, actulizar y eliminar usuarios, crear categorias
+editar los rolees de los usuarios 
+
+al relizar un pedido desde el sitio wed se pede viuslizar este pedido en el admin donde podemos rchazarlo, 
+aceptarlo o mirar los detalles del pedido. Al rechazarlo se actualiza el estock es decir que vuelven los 
+productos selecionados al estock que pertenecenal, confirmar el pedido pasa a un estado de confirmancion   
