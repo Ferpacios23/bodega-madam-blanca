@@ -18,7 +18,7 @@ if (!isset($_SESSION['carrito'])) {
 // Obtener el ID del producto desde la URL para añadir al carrito
 if (isset($_GET['add'])) {
     $id_producto = intval($_GET['add']);
-    
+
     // Verificar si el producto ya está en el carrito
     if (isset($_SESSION['carrito'][$id_producto])) {
         $_SESSION['carrito'][$id_producto]['cantidad']++;
@@ -109,16 +109,18 @@ while ($producto = $resultado->fetch_assoc()) {
 
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Carrito de Compras - Confirmar Compra</title>
     <link href="./assets/css/bootstrap/bootstrap.min.css" rel="stylesheet">
 </head>
+
 <body>
     <div class="container my-5">
         <h2 class="text-center">Confirmar Compra</h2>
-        
+
         <!-- Resumen de productos en el carrito -->
         <h3 class="mt-4">Resumen de Productos</h3>
         <table class="table table-bordered">
@@ -142,7 +144,7 @@ while ($producto = $resultado->fetch_assoc()) {
             </tbody>
         </table>
         <h4 class="text-end">Total a Pagar: $<?php echo number_format($total, 2); ?></h4>
-        
+
         <!-- Formulario de información del cliente -->
         <form method="POST" action="" class="mt-4">
             <h3>Datos del Cliente</h3>
@@ -164,4 +166,5 @@ while ($producto = $resultado->fetch_assoc()) {
         </form>
     </div>
 </body>
+
 </html>

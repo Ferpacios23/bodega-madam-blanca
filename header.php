@@ -12,31 +12,30 @@
             <div class="container-logo">
                 <h1 class="logo">
                     <a href="./index.php">
-                    <img src="./assets/icon/image-removebg-preview (1).png" alt="logo principal">
+                        <img src="./assets/icon/logo.png" alt="logo principal">
                     </a>
                 </h1>
             </div>
 
             <div class="container-user">
-                <a href="./login.php"><i class="fa-solid fa-user"></i></a>
+                <?php if (!isset($_SESSION['usuario'])): ?>
+                    <!-- Mostrar ícono de usuario si no está en sesión -->
+                    <a href="./login.php"><i class="fa-solid fa-user"></i></a>
+                <?php else: ?>
+                    <!-- Mostrar ícono de la web si está en sesión -->
+                    <div class="dropdown">
+                        <a href="#" class="fa-solid fa-globe" id="userMenuToggle"></a>
+                        <div class="dropdown-menu" id="userMenu">
+                            <p class="user-name"><?php echo htmlspecialchars($_SESSION['usuario']); ?></p>
+                            <a href="./logout.php" class="logout">Cerrar sesión</a>
+                        </div>
+                    </div>
+                <?php endif; ?>
 
-                <a href="carrito.php"><i class="fa-solid fa-basket-shopping"></i></a>
-                <div class="content-shopping-cart">
-                    <span class="text">Carrito</span>
-                    <span class="number">
-                        <?php
-                        // Verificar si la sesión está iniciada
-                        if (isset($_SESSION['carrito'])) {
-                            // Si el carrito tiene productos, mostrar la suma
-                            echo '(' . array_sum($_SESSION['carrito']) . ')';
-                        } else {
-                            // Si no hay sesión, mostrar cero
-                            echo '(0)';
-                        }
-                        ?>
-                    </span>
-                </div>
+                <!-- Ícono de carrito siempre visible -->
+                <a href="./TiendaDeUsuarios/carrito.php"><i class="fa-solid fa-basket-shopping"></i></a>
             </div>
+
         </div>
     </div>
 
@@ -45,9 +44,10 @@
             <i class="fa-solid fa-bars"></i>
             <ul class="menu">
                 <li><a href="./index.php">Inicio</a></li>
-                <li><a href="./nosotros.php">Nosotros</a></li>
-                <li><a href="./tienda.php">Tienda</a></li>
-                <li><a href="./contacto.php">Contacto</a></li>
+                <li><a href="./index.php#nosotros">Nosotros</a></li>
+                <li><a href="./index.php#blogs">Blogs</a></li>
+                <li><a href="./index.php#contactos">Contacto</a></li>
+                <li><a href="./TiendaDeUsuarios/tienda.php">productos</a></li>
             </ul>
         </nav>
     </div>

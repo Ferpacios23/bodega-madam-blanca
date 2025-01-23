@@ -68,6 +68,7 @@ html {
 	display: flex;
 	align-items: center;
 	gap: 0.5rem;
+	height: 57px;
 }
 
 .container-logo i {
@@ -82,23 +83,33 @@ html {
 	letter-spacing: -1px;
 }
 
+.container-logo h1 a img{
+	width: 130px;
+}
+
 .container-user {
 	display: flex;
 	gap: 1rem;
 	cursor: pointer;
 }
 
-.container-user .fa-user {
+.container-user a {
+	display: flex;
+	align-items: center;
+	color: var(--primary-color);
 	font-size: 3rem;
-	color: var(--primary-color) !important;
-	padding-right: 2.5rem;
-	border-right: 1px solid #e2e2e2;
+	transition: color 0.3s ease;
+	text-decoration: none;
 }
 
+.container-user a:hover {
+	color: #000;
+}
+
+.container-user .fa-user,
+.container-user .fa-globe,
 .container-user .fa-basket-shopping {
-	font-size: 3rem;
-	color: var(--primary-color) !important;
-	padding-left: 1rem;
+	padding: 0 1rem;
 }
 
 .content-shopping-cart {
@@ -120,6 +131,9 @@ html {
 
 .navbar .fa-bars {
 	display: none;
+	cursor: pointer;
+	color: #fff;
+	font-size: 3rem;
 }
 
 .menu {
@@ -129,15 +143,33 @@ html {
 
 .menu li {
 	list-style: none;
+	text-align: center;
 }
 
 .menu a {
-	text-decoration: none;
-	font-size: 1.3rem;
-	color: var(--dark-color);
-	font-weight: 600;
+	padding: 1rem 2rem;
+	color: #fff;
 	text-transform: uppercase;
-	position: relative;
+	text-decoration:none;
+	font-weight: 600;
+	transition: background-color 0.3s ease;
+}
+
+.menu a:hover {
+	background-color: rgba(255, 255, 255, 0.2);
+}
+
+.menu.active {
+	display: flex;
+	flex-direction: column;
+	position: absolute;
+	top: 100%;
+	left: 0;
+	background-color: var(--primary-color);
+	width: 100%;
+	padding: 1rem 0;
+	z-index: 1000;
+	box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
 }
 
 .menu a::after {
@@ -931,6 +963,40 @@ html {
 	font-size: 1.6rem;
 }
 
+/* Mantener las imágenes a un tamaño uniforme */
+.card-img-top-container {
+	height: 200px;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	overflow: hidden;
+}
+
+.card-img-top {
+	max-height: 100%;
+	max-width: 100%;
+}
+
+/* Limitar la descripción a 3 líneas con truncamiento */
+.text-truncate-3 {
+	display: -webkit-box;
+	-webkit-line-clamp: 3; /* Número máximo de líneas */
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: normal;
+}
+
+/* Asegurar que todas las tarjetas tengan igual altura */
+.card {
+	display: flex;
+	flex-direction: column;
+}
+
+.card-body {
+	flex: 1;
+}
+
 /* ********************************** */
 /*       MEDIA QUERIES -- 768px       */
 /* ********************************** */
@@ -1142,4 +1208,28 @@ html {
 	.content p{
 		font-size: 1.6rem;
 	}
+}
+
+.dropdown-menu a.logout {
+    color: #ff0000; /* Color del texto */
+    text-decoration: none; /* Sin subrayado */
+    padding: 0.5rem 1rem; /* Espaciado interno */
+    display: block; /* Hacer que el enlace ocupe todo el ancho */
+    font-size: 1.2rem; /* Tamaño de fuente */
+    border-radius: 5px; /* Bordes redondeados */
+    transition: background-color 0.3s ease; /* Transición suave */
+}
+
+.dropdown-menu a.logout:hover {
+    background-color: rgba(255, 255, 255, 0.2); /* Fondo al pasar el ratón */
+}
+
+.dropdown-menu .user-name {
+    color: #000000; /* Color del texto */
+    font-size: 1.2rem; /* Tamaño de fuente */
+    margin-bottom: 0.5rem; /* Espaciado inferior */
+    padding: 0.5rem 1rem; /* Espaciado interno */
+    border-radius: 5px; /* Bordes redondeados */
+    background-color: rgba(255, 255, 255, 0.1); /* Fondo suave para destacar */
+    text-align: center; /* Centrar el texto */
 }

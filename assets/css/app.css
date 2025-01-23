@@ -172,6 +172,8 @@ html {
     margin-bottom: 20px;
 }
 
+
+
 /* Media Queries para hacer el sitio responsivo */
 @media (max-width: 768px) {
     .cartas {
