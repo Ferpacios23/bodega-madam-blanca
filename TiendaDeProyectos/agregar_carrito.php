@@ -48,15 +48,15 @@ if (isset($_POST['id_producto']) && isset($_POST['cantidad']) && isset($_POST['i
             header("Location: carrito.php");
         } else {
             // Mostrar mensaje si se supera el stock
-            echo "<script>alert('La cantidad solicitada supera el stock disponible. Stock actual: {$producto['stock_proyecto']}'); window.location.href='index.php';</script>";
+            echo "<script>alert('La cantidad solicitada supera el stock disponible. Stock actual: {$producto['stock_proyecto']}'); window.location.href='productosProyecto.php';</script>";
         }
     } else {
         // Mostrar mensaje de error si no se encuentra el producto
-        echo "<script>alert('Producto no disponible para este proyecto.'); window.location.href='index.php';</script>";
+        echo "<script>alert('Producto no disponible para este proyecto.'); window.location.href='productosProyecto.php';</script>";
     }
     exit;
 } else {
     // Si faltan datos, redirigir con un mensaje de error
-    echo "<script>alert('Datos incompletos'); window.location.href='index.php';</script>";
+    echo "<script>alert('Datos incompletos'); window.location.href='productosProyecto.php';</script>";
     exit;
 }

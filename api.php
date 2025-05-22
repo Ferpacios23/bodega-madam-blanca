@@ -14,6 +14,7 @@ $constructoras = [
     ["id" => 3, "nombre" => "Arquitectura & Concreto", "ciudad" => "Medellín", "ranking" => 3],
     ["id" => 4, "nombre" => "Colpatria", "ciudad" => "Bogotá", "ranking" => 4],
     ["id" => 5, "nombre" => "Coninsa Ramón H.", "ciudad" => "Medellín", "ranking" => 5],
+    ["id" => 6, "nombre" => "Conino  C.", "ciudad" => "Choco", "ranking" => 3],
 ];
 
 // Obtén el método de la solicitud

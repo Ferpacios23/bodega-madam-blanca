@@ -77,7 +77,7 @@ if (isset($_POST['realizar_pedido'])) {
         <h1 class="text-center mb-4">Carrito de Compras</h1>
 
         <div class="mb-3 text-end">
-            <a href="./index.php" class="btn btn-primary">Continuar Comprando</a>
+            <a href="./productosProyecto.php" class="btn btn-primary">Continuar Comprando</a>
         </div>
 
         <form method="POST">

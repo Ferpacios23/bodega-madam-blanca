@@ -146,4 +146,4 @@ document.addEventListener('DOMContentLoaded', () => {
     if (urlParams.has('email_error')) {
         mostrarModalError('El correo ya está registrado');
     }
-});
+}); 

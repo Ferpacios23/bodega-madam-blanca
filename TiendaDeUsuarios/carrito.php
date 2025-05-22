@@ -6,7 +6,7 @@ $id_usuario = $_SESSION['id_usuario'] ?? null;
 
 // Verificar si el usuario está logueado antes de proceder
 if (!$id_usuario) {
-    echo "<script>alert('Por favor, inicie sesión para realizar un pedido.'); window.location.href = '../login.php';</script>";
+    echo "<script> window.location.href = '../login.php';</script>";
     exit;
 }
 

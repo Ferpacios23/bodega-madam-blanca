@@ -86,52 +86,93 @@ if (isset($_GET['eliminar'])) {
         <?php include("./nav.php"); ?>
         <div id="layoutSidenav_content">
             <main>
-                <!-- Formulario para agregar un rol -->
-                <div class="card mb-4">
-                    <div class="card-header bg-primary text-white">
-                        <i class="fas fa-plus me-2"></i>Agregar proyecto
-                    </div>
-                    <div class="card-body">
-                        <form method="POST" enctype="multipart/form-data" class="container p-4 bg-light rounded shadow">
-                            <div class="mb-3">
-                                <label for="id_proyecto" class="form-label">ID del Proyecto</label>
-                                <input type="number" class="form-control" id="id_proyecto" name="id_proyecto" placeholder="Ingrese el ID del proyecto" required>
-                            </div>
-                            <div class="mb-3">
-                                <label for="nombre" class="form-label">Nombre del Proyecto</label>
-                                <input type="text" class="form-control" id="nombre" name="nombre" placeholder="Nombre del proyecto" required>
-                            </div>
-                            <div class="mb-3">
-                                <label for="descripcion" class="form-label">Descripción</label>
-                                <textarea class="form-control" id="descripcion" name="descripcion" rows="3" placeholder="Descripción del proyecto" required></textarea>
-                            </div>
-                            <button type="submit" name="agregar" class="btn btn-primary">
-                                <i class="fas fa-plus"></i> Agregar Proyecto
-                            </button>
-                        </form>
-
-                    </div>
-                </div>
                 <div class="container-fluid px-4">
                     <div class="card mb-4">
-                        <div class="card-header">
-                            <i class="fas fa-table me-1"></i>
-                            DataTable Example
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="fas fa-table me-1"></i>
+                                Lista de Proyectos
+                            </div>
+                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#agregarProyectoModal">
+                                <i class="fas fa-plus me-2"></i>Agregar Proyecto
+                            </button>
                         </div>
-                        <div class="card-body">
+                        <div class="card-body"> 
+                            <!-- Formulario de búsqueda -->
+                            <div class="mb-3">
+                                <form method="GET" class="row g-3">
+                                    <div class="col-md-10">
+                                        <input type="text" class="form-control" name="busqueda" placeholder="Buscar por nombre, descripción o jefe de obra..." value="<?= htmlspecialchars($_GET['busqueda'] ?? '') ?>">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button type="submit" class="btn btn-primary w-100">Buscar</button>
+                                    </div>
+                                </form>
+                            </div>
+
+                            <!-- Modal para agregar proyecto -->
+                            <div class="modal fade" id="agregarProyectoModal" tabindex="-1" aria-labelledby="agregarProyectoModalLabel" aria-hidden="true">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title" id="agregarProyectoModalLabel">Agregar Nuevo Proyecto</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <form method="POST" id="formProyecto">
+                                                <div class="mb-3">
+                                                    <label for="id_proyecto" class="form-label">ID del Proyecto</label>
+                                                    <input type="number" class="form-control" id="id_proyecto" name="id_proyecto" required>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label for="nombre" class="form-label">Nombre del Proyecto</label>
+                                                    <input type="text" class="form-control" id="nombre" name="nombre" required>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label for="descripcion" class="form-label">Descripción</label>
+                                                    <textarea class="form-control" id="descripcion" name="descripcion" rows="3" required></textarea>
+                                                </div>
+                                            </form>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                            <button type="submit" form="formProyecto" name="agregar" class="btn btn-primary">Agregar Proyecto</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             <table class="table">
                                 <thead>
                                     <tr>
-                                        <th scope="col">ID_proyecto</th>
-                                        <th scope="col">nombre</th>
-                                        <th scope="col">Descripcio</th>
-                                        <th scope="col">Acciones</th>
+                                        <th scope="col">ID Proyecto</th>
+                                        <th scope="col">Nombre</th>
+                                        <th scope="col">Descripción</th>
+                                        <th scope="col">Jefe de Obra</th>
+                                        <th socope="col">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php
-                                    $query = "SELECT * FROM proyectos";
-                                    $result = $conexion->query($query);
+                                    $busqueda = isset($_GET['busqueda']) ? trim($_GET['busqueda']) : '';
+                                    $query = "SELECT p.*, u.nombre as nombre_jefe 
+                                             FROM proyectos p 
+                                             LEFT JOIN jefes_obra_proyectos jp ON p.id_proyecto = jp.id_proyecto 
+                                             LEFT JOIN usuarios u ON jp.id_usuario = u.id_usuario";
+                                    
+                                    if (!empty($busqueda)) {
+                                        $busqueda_param = "%$busqueda%";
+                                        $query .= " WHERE p.nombre LIKE ? OR p.descripcion LIKE ? OR u.nombre LIKE ?";
+                                    }
+                                    
+                                    $stmt = $conexion->prepare($query);
+                                    
+                                    if (!empty($busqueda)) {
+                                        $stmt->bind_param("sss", $busqueda_param, $busqueda_param, $busqueda_param);
+                                    }
+                                    
+                                    $stmt->execute();
+                                    $result = $stmt->get_result();
 
                                     if ($result->num_rows > 0):
                                         while ($row = $result->fetch_assoc()):
@@ -140,9 +181,17 @@ if (isset($_GET['eliminar'])) {
                                                 <td><?= htmlspecialchars($row['id_proyecto']) ?></td>
                                                 <td><?= htmlspecialchars($row['nombre']) ?></td>
                                                 <td><?= htmlspecialchars($row['descripcion']) ?></td>
+                                                <td><?= htmlspecialchars($row['nombre_jefe'] ?? 'Sin asignar') ?></td>
+
                                                 <td>
-                                                    <a href="proyectos.php?eliminar=<?= $row['id_proyecto'] ?>" class="btn btn-danger" onclick="return confirm('¿Estás seguro de eliminar este proyecto?');">Eliminar</a>
+                                                     <button type="button" class="btn btn-info btn-sm" data-bs-toggle="modal" data-bs-target="#modalProductos<?= $row['id_proyecto'] ?>">
+                                                        <i class="fas fa-box"></i> Ver Productos
+                                                    </button>
+                                                    <a href="hacer_pedido.php?id_proyecto=<?= $row['id_proyecto'] ?>" class="btn btn-success btn-sm">
+                                                        <i class="fas fa-shopping-cart"></i> Hacer Pedido
+                                                    </a>
                                                 </td>
+
                                             </tr>
                                         <?php
                                         endwhile;
@@ -152,10 +201,122 @@ if (isset($_GET['eliminar'])) {
                                             <td colspan="4" class="text-center">No hay proyectos registrados.</td>
                                         </tr>
                                     <?php endif; ?>
-
-
                                 </tbody>
                             </table>
+
+                            <!-- Modal para mostrar productos del proyecto -->
+                            <?php
+                            // Obtener los productos para cada proyecto
+                            $stmt_productos = $conexion->prepare("
+                                SELECT p.id_proyecto, pr.nombre_producto, pr.descripcion, sp.cantidad, pr.imagen_url
+                                FROM proyectos p
+                                LEFT JOIN stock_proyectos sp ON p.id_proyecto = sp.id_proyecto
+                                LEFT JOIN productos pr ON sp.id_producto = pr.id_producto
+                                WHERE p.id_proyecto = ?
+                            ");
+
+                            if ($result->num_rows > 0):
+                                $result->data_seek(0);
+                                while ($row = $result->fetch_assoc()):
+                                    $stmt_productos->bind_param("i", $row['id_proyecto']);
+                                    $stmt_productos->execute();
+                                    $productos = $stmt_productos->get_result();
+                                    $total_productos = $productos->num_rows;
+                                    $productos_por_pagina = 6;
+                                    $total_paginas = ceil($total_productos / $productos_por_pagina);
+                            ?>
+                                <div class="modal fade" id="modalProductos<?= $row['id_proyecto'] ?>" tabindex="-1" aria-labelledby="modalProductosLabel<?= $row['id_proyecto'] ?>" aria-hidden="true">
+                                    <div class="modal-dialog modal-lg">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title" id="modalProductosLabel<?= $row['id_proyecto'] ?>">
+                                                    Productos del Proyecto: <?= htmlspecialchars($row['nombre']) ?>
+                                                </h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <?php if ($total_productos > 0): ?>
+                                                    <!-- Buscador -->
+                                                    <div class="mb-3">
+                                                        <div class="input-group">
+                                                            <span class="input-group-text">
+                                                                <i class="fas fa-search"></i>
+                                                            </span>
+                                                            <input type="text" 
+                                                                   class="form-control" 
+                                                                   id="buscarProducto<?= $row['id_proyecto'] ?>" 
+                                                                   placeholder="Buscar producto por nombre o descripción..."
+                                                                   onkeyup="filtrarProductos(<?= $row['id_proyecto'] ?>)">
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="table-responsive">
+                                                        <table class="table table-striped">
+                                                            <thead>
+                                                                <tr>
+                                                                    <th>Producto</th>
+                                                                    <th>Descripción</th>
+                                                                    <th>Cantidad</th>
+                                                                    <th>Imagen</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                <?php 
+                                                                $contador = 0;
+                                                                $productos->data_seek(0);
+                                                                while ($producto = $productos->fetch_assoc()): 
+                                                                ?>
+                                                                    <tr class="fila-producto" style="display: <?= $contador < $productos_por_pagina ? '' : 'none' ?>">
+                                                                        <td><?= htmlspecialchars($producto['nombre_producto']) ?></td>
+                                                                        <td><?= htmlspecialchars($producto['descripcion']) ?></td>
+                                                                        <td><?= htmlspecialchars($producto['cantidad']) ?></td>
+                                                                        <td>
+                                                                            <?php if ($producto['imagen_url']): ?>
+                                                                                <img src="<?= htmlspecialchars($producto['imagen_url']) ?>" 
+                                                                                     alt="<?= htmlspecialchars($producto['nombre_producto']) ?>" 
+                                                                                     style="max-width: 50px; max-height: 50px;">
+                                                                            <?php else: ?>
+                                                                                Sin imagen
+                                                                            <?php endif; ?>
+                                                                        </td>
+                                                                    </tr>
+                                                                <?php 
+                                                                $contador++;
+                                                                endwhile; 
+                                                                ?>
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+
+                                                    <?php if ($total_paginas > 1): ?>
+                                                        <div class="d-flex justify-content-center mt-3">
+                                                            <nav aria-label="Navegación de productos">
+                                                                <ul class="pagination">
+                                                                    <?php for($i = 1; $i <= $total_paginas; $i++): ?>
+                                                                        <li class="page-item <?= $i === 1 ? 'active' : '' ?>">
+                                                                            <button class="page-link" onclick="cambiarPagina(<?= $i ?>, <?= $row['id_proyecto'] ?>)"><?= $i ?></button>
+                                                                        </li>
+                                                                    <?php endfor; ?>
+                                                                </ul>
+                                                            </nav>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                <?php else: ?>
+                                                    <div class="alert alert-info">
+                                                        No hay productos asignados a este proyecto.
+                                                    </div>
+                                                <?php endif; ?>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php
+                                endwhile;
+                            endif;
+                            ?>
                         </div>
                     </div>
                 </div>

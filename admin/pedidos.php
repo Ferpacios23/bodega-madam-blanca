@@ -11,6 +11,95 @@ if (!isset($_SESSION['id_rol']) || $_SESSION['id_rol'] != 1) {
     exit();
 }
 
+// Obtener fechas del filtro
+$fecha_inicio = isset($_GET['fecha_inicio']) ? $_GET['fecha_inicio'] : date('Y-m-d', strtotime('-30 days'));
+$fecha_fin = isset($_GET['fecha_fin']) ? $_GET['fecha_fin'] : date('Y-m-d');
+$estado_filtro = isset($_GET['estado']) ? $_GET['estado'] : '';
+
+// Verificar si se está solicitando ver detalles de un pedido
+$mostrar_detalles = false;
+$detalles_pedido = null;
+if (isset($_GET['detalles'])) {
+    $id_pedido = intval($_GET['detalles']);
+    
+    // Obtener información del pedido
+    $query_pedido = $conexion->prepare("
+        SELECT p.*, u.nombre as nombre_usuario, u.email as email_usuario
+        FROM Pedidos p
+        JOIN usuarios u ON p.id_usuario = u.id_usuario
+        WHERE p.id_pedido = ?
+    ");
+    $query_pedido->bind_param("i", $id_pedido);
+    $query_pedido->execute();
+    $pedido_info = $query_pedido->get_result()->fetch_assoc();
+    
+    if ($pedido_info) {
+        // Obtener detalles del pedido
+        $query_detalles = $conexion->prepare("
+            SELECT d.*, p.nombre_producto, p.precio
+            FROM Detalles d
+            JOIN Productos p ON d.id_producto = p.id_producto
+            WHERE d.id_pedido = ?
+        ");
+        $query_detalles->bind_param("i", $id_pedido);
+        $query_detalles->execute();
+        $detalles_pedido = $query_detalles->get_result();
+        $mostrar_detalles = true;
+    }
+}
+
+// Obtener resumen de ventas
+$resumen_query = $conexion->prepare("
+    SELECT 
+        COUNT(*) as total_ventas,
+        COALESCE(SUM(total), 0) as monto_total,
+        COALESCE(AVG(total), 0) as promedio_venta,
+        COALESCE(MAX(total), 0) as venta_maxima
+    FROM Pedidos 
+    WHERE fecha_pedido BETWEEN ? AND ?
+    AND estado = 'pagado'
+");
+$resumen_query->bind_param("ss", $fecha_inicio, $fecha_fin);
+$resumen_query->execute();
+$resumen = $resumen_query->get_result()->fetch_assoc();
+
+// Configuración de paginación
+$registros_por_pagina = 10;
+$pagina_actual = isset($_GET['pagina']) ? (int)$_GET['pagina'] : 1;
+$offset = ($pagina_actual - 1) * $registros_por_pagina;
+
+// Búsqueda
+$busqueda = isset($_GET['busqueda']) ? $_GET['busqueda'] : '';
+$where_busqueda = '';
+if (!empty($busqueda)) {
+    $where_busqueda = " AND (id_pedido LIKE '%$busqueda%' OR id_usuario LIKE '%$busqueda%')";
+}
+
+// Agregar filtro de estado
+$where_estado = '';
+if (!empty($estado_filtro)) {
+    $where_estado = " AND estado = '$estado_filtro'";
+}
+
+// Obtener total de registros para paginación
+$total_query = $conexion->query("
+    SELECT COUNT(*) as total 
+    FROM Pedidos 
+    WHERE fecha_pedido BETWEEN '$fecha_inicio' AND '$fecha_fin' $where_busqueda $where_estado
+");
+$total_registros = $total_query->fetch_assoc()['total'];
+$total_paginas = ceil($total_registros / $registros_por_pagina);
+
+// Obtener pedidos con paginación
+$pedidos_query = $conexion->prepare("
+    SELECT * FROM Pedidos 
+    WHERE fecha_pedido BETWEEN ? AND ? $where_busqueda $where_estado
+    ORDER BY fecha_pedido DESC 
+    LIMIT ? OFFSET ?
+");
+$pedidos_query->bind_param("ssii", $fecha_inicio, $fecha_fin, $registros_por_pagina, $offset);
+$pedidos_query->execute();
+$pedidos = $pedidos_query->get_result();
 
 // Actualizar el estado del pedido
 if (isset($_GET['aprobar'])) {
@@ -51,12 +140,9 @@ if (isset($_GET['rechazar'])) {
         echo "<script>alert('El pedido ya fue procesado.'); window.location.href='pedidos.php';</script>";
     }
 }
-
-// Obtener todos los pedidos pendientes
-$pedidos = $conexion->query("SELECT * FROM Pedidos ORDER BY fecha_pedido DESC");
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 
 <head>
     <meta charset="utf-8" />
@@ -64,9 +150,10 @@ $pedidos = $conexion->query("SELECT * FROM Pedidos ORDER BY fecha_pedido DESC");
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
     <meta name="description" content="" />
     <meta name="author" content="" />
-    <title>Dashboard - SB Admin</title>
+    <title>Panel de Ventas - Administrador</title>
     <link href="https://cdn.jsdelivr.net/npm/simple-datatables@7.1.2/dist/style.min.css" rel="stylesheet" />
     <link href="../assets/css/styles2.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://use.fontawesome.com/releases/v6.3.0/js/all.js" crossorigin="anonymous"></script>
     <link rel="icon" type="image/png" href="../assets/icon/logo.png">
 
@@ -86,156 +173,247 @@ $pedidos = $conexion->query("SELECT * FROM Pedidos ORDER BY fecha_pedido DESC");
         <div id="layoutSidenav_content">
             <main>
                 <div class="container-fluid px-4">
+                    <h1 class="mt-4">Panel de Ventas</h1>
+                    
+                    <?php if ($mostrar_detalles && $pedido_info): ?>
+                    <!-- Vista de detalles del pedido -->
+                    <div class="card mb-4">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="fas fa-shopping-cart me-1"></i>
+                                Detalles del Pedido #<?php echo $pedido_info['id_pedido']; ?>
+                            </div>
+                            <a href="admin.php" class="btn btn-secondary btn-sm">
+                                <i class="fas fa-arrow-left"></i> Volver
+                            </a>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-4">
+                                <div class="col-md-6">
+                                    <h5>Información del Cliente</h5>
+                                    <p><strong>Nombre:</strong> <?php echo htmlspecialchars($pedido_info['nombre_usuario']); ?></p>
+                                    <p><strong>Email:</strong> <?php echo htmlspecialchars($pedido_info['email_usuario']); ?></p>
+                                </div>
+                                <div class="col-md-6">
+                                    <h5>Información del Pedido</h5>
+                                    <p><strong>Fecha:</strong> <?php echo date('d/m/Y H:i', strtotime($pedido_info['fecha_pedido'])); ?></p>
+                                    <p><strong>Estado:</strong> 
+                                        <span class="badge bg-<?php 
+                                            echo $pedido_info['estado'] == 'pendiente' ? 'warning' : 
+                                                ($pedido_info['estado'] == 'pagado' ? 'success' : 'danger'); 
+                                        ?>">
+                                            <?php echo ucfirst($pedido_info['estado']); ?>
+                                        </span>
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <h5>Productos</h5>
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Producto</th>
+                                            <th>Cantidad</th>
+                                            <th>Precio Unitario</th>
+                                            <th>Subtotal</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php 
+                                        $total = 0;
+                                        while ($detalle = $detalles_pedido->fetch_assoc()): 
+                                            $subtotal = $detalle['cantidad'] * $detalle['precio'];
+                                            $total += $subtotal;
+                                        ?>
+                                        <tr>
+                                            <td><?php echo htmlspecialchars($detalle['nombre_producto']); ?></td>
+                                            <td><?php echo $detalle['cantidad']; ?></td>
+                                            <td>$<?php echo number_format($detalle['precio'], 2); ?></td>
+                                            <td>$<?php echo number_format($subtotal, 2); ?></td>
+                                        </tr>
+                                        <?php endwhile; ?>
+                                    </tbody>
+                                    <tfoot>
+                                        <tr>
+                                            <td colspan="3" class="text-end"><strong>Total:</strong></td>
+                                            <td><strong>$<?php echo number_format($total, 2); ?></strong></td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                            
+                            <?php if ($pedido_info['estado'] == 'pendiente'): ?>
+                            <div class="mt-3">
+                                <button class="btn btn-success" onclick="confirmarAccion('aprobar', <?php echo $pedido_info['id_pedido']; ?>)">
+                                    <i class="fas fa-check"></i> Aprobar Pedido
+                                </button>
+                                <button class="btn btn-danger" onclick="confirmarAccion('rechazar', <?php echo $pedido_info['id_pedido']; ?>)">
+                                    <i class="fas fa-times"></i> Rechazar Pedido
+                                </button>
+                            </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <?php else: ?>
+                    <!-- Filtro de fechas -->
+                    <div class="card mb-4">
+                        <div class="card-header bg-primary text-white">
+                            <i class="fas fa-filter me-1"></i>
+                            Filtros de Búsqueda
+                        </div>
+                        <div class="card-body">
+                            <form method="GET" class="row g-3">
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label for="fecha_inicio" class="form-label fw-bold">
+                                            <i class="fas fa-calendar-alt me-1"></i>Fecha Inicio
+                                        </label>
+                                        <input type="date" class="form-control shadow-sm" id="fecha_inicio" name="fecha_inicio" value="<?php echo $fecha_inicio; ?>">
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label for="fecha_fin" class="form-label fw-bold">
+                                            <i class="fas fa-calendar-alt me-1"></i>Fecha Fin
+                                        </label>
+                                        <input type="date" class="form-control shadow-sm" id="fecha_fin" name="fecha_fin" value="<?php echo $fecha_fin; ?>">
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label for="estado" class="form-label fw-bold">
+                                            <i class="fas fa-tag me-1"></i>Estado
+                                        </label>
+                                        <select class="form-select shadow-sm" id="estado" name="estado">
+                                            <option value="">Todos los estados</option>
+                                            <option value="pendiente" <?php echo $estado_filtro === 'pendiente' ? 'selected' : ''; ?>>Pendiente</option>
+                                            <option value="pagado" <?php echo $estado_filtro === 'pagado' ? 'selected' : ''; ?>>Pagado</option>
+                                            <option value="cancelado" <?php echo $estado_filtro === 'cancelado' ? 'selected' : ''; ?>>Cancelado</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label for="busqueda" class="form-label fw-bold">
+                                            <i class="fas fa-search me-1"></i>Buscar
+                                        </label>
+                                        <input type="text" class="form-control shadow-sm" id="busqueda" name="busqueda" value="<?php echo htmlspecialchars($busqueda); ?>" placeholder="ID Pedido o Usuario">
+                                    </div>
+                                </div>
+                                <div class="col-12 mt-4">
+                                    <div class="d-flex justify-content-end gap-2">
+                                        <button type="reset" class="btn btn-secondary">
+                                            <i class="fas fa-undo me-1"></i>Limpiar Filtros
+                                        </button>
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="fas fa-filter me-1"></i>Aplicar Filtros
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Tarjetas de resumen -->
+                    <div class="row">
+                        <div class="col-xl-3 col-md-6">
+                            <div class="card bg-primary text-white mb-4">
+                                <div class="card-body">
+                                    <h4>Total Ventas</h4>
+                                    <h2><?php echo number_format($resumen['total_ventas']); ?></h2>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-xl-3 col-md-6">
+                            <div class="card bg-success text-white mb-4">
+                                <div class="card-body">
+                                    <h4>Monto Total</h4>
+                                    <h2>$<?php echo number_format($resumen['monto_total'], 2); ?></h2>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-xl-3 col-md-6">
+                            <div class="card bg-info text-white mb-4">
+                                <div class="card-body">
+                                    <h4>Promedio</h4>
+                                    <h2>$<?php echo number_format($resumen['promedio_venta'], 2); ?></h2>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-xl-3 col-md-6">
+                            <div class="card bg-warning text-white mb-4">
+                                <div class="card-body">
+                                    <h4>Venta Máxima</h4>
+                                    <h2>$<?php echo number_format($resumen['venta_maxima'], 2); ?></h2>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabla de resultados -->
                     <div class="card mb-4">
                         <div class="card-header">
                             <i class="fas fa-table me-1"></i>
-                            Administrar Pedidos
+                            Lista de Pedidos
                         </div>
-                        <?php if (isset($_GET['detalles'])): ?>
-                            <?php
-                            $id_pedido = intval($_GET['detalles']);
-
-                            // Obtener los detalles del cliente y la dirección asociada al pedido
-                            $pedido_info = $conexion->query("
-        SELECT p.id_pedido, p.id_usuario, p.total, p.fecha_pedido, u.nombre, u.email, u.telefono, d.ciudad, d.codigo_postal, d.direccion, p.estado
-        FROM Pedidos p
-        JOIN Usuarios u ON p.id_usuario = u.id_usuario
-        LEFT JOIN Direcciones d ON p.id_pedido = d.id_pedido
-        WHERE p.id_pedido = $id_pedido
-    ");
-
-                            // Verifica si hay resultados
-                            if ($pedido_info && $pedido_info->num_rows > 0) {
-                                $info = $pedido_info->fetch_assoc();
-                            } else {
-                                $info = null;
-                            }
-
-                            // Obtener los detalles de los productos en el pedido
-                            $detalles = $conexion->query("
-        SELECT d.id_producto, d.cantidad, d.precio_unitario, p.nombre_producto 
-        FROM Detalles d 
-        JOIN Productos p ON d.id_producto = p.id_producto 
-        WHERE d.id_pedido = $id_pedido
-    ");
-                            ?>
-
-                            <div class="container my-5">
-                                <h2 class="text-center mb-4">Detalles del Pedido #<?php echo $id_pedido; ?></h2>
-
-                                <!-- Información del Cliente -->
-                                <div class="card mb-4">
-                                    <div class="card-header bg-primary text-white">Información del Cliente</div>
-                                    <div class="card-body">
-                                        <p><strong>Cliente:</strong> <?php echo htmlspecialchars($info['nombre'] ?? 'No disponible'); ?></p>
-                                        <p><strong>Email:</strong> <?php echo htmlspecialchars($info['email'] ?? 'No disponible'); ?></p>
-                                        <p><strong>Teléfono:</strong> <?php echo htmlspecialchars($info['telefono'] ?? 'No disponible'); ?></p>
-                                        <p><strong>Fecha del Pedido:</strong> <?php echo htmlspecialchars($info['fecha_pedido'] ?? 'No disponible'); ?></p>
-                                        <p><strong>Total:</strong> $<?php echo number_format($info['total'] ?? 0, 2); ?></p>
-                                    </div>
-                                </div>
-
-                                <!-- Dirección de Envío -->
-                                <div class="card mb-4">
-                                    <div class="card-header bg-secondary text-white">Dirección de Envío</div>
-                                    <div class="card-body">
-                                        <p><strong>Dirección:</strong> <?php echo htmlspecialchars($info['direccion'] ?? 'No disponible'); ?></p>
-                                        <p><strong>Ciudad:</strong> <?php echo htmlspecialchars($info['ciudad'] ?? 'No disponible'); ?></p>
-                                        <p><strong>Código Postal:</strong> <?php echo htmlspecialchars($info['codigo_postal'] ?? 'No disponible'); ?></p>
-                                    </div>
-                                </div>
-
-
-                                <!-- Productos del Pedido -->
-                                <div class="card-header bg-info text-white">Productos del Pedido</div>
-                                <div class="card-body">
-                                    <table class="table table-striped table-bordered">
-                                        <thead class="table-dark">
-                                            <tr>
-                                                <th>Producto</th>
-                                                <th>Cantidad</th>
-                                                <th>Precio Unitario</th>
-                                                <th>Subtotal</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <?php
-                                            $total_pagar = 0; // Inicializa la variable para el total
-                                            while ($detalle = $detalles->fetch_assoc()):
-                                                $subtotal = $detalle['precio_unitario'] * $detalle['cantidad'];
-                                                $total_pagar += $subtotal; // Acumula el subtotal
-                                            ?>
-                                                <tr>
-                                                    <td><?php echo htmlspecialchars($detalle['nombre_producto']); ?></td>
-                                                    <td><?php echo $detalle['cantidad']; ?></td>
-                                                    <td>$<?php echo number_format($detalle['precio_unitario'], 2); ?></td>
-                                                    <td>$<?php echo number_format($subtotal, 2); ?></td>
-                                                </tr>
-                                            <?php endwhile; ?>
-                                        </tbody>
-                                    </table>
-                                    <!-- Muestra el total a pagar -->
-                                    <div class="mt-3">
-                                        <h5 class="text-end">Total a Pagar: $<?php echo number_format($total_pagar, 2); ?></h5>
-                                    </div>
-                                    <div class="mt-3">
-                                        <h5 class="text-end">Estado del Pedido: <span class="badge bg-<?php echo ($info['estado'] == 'pendiente') ? 'warning' : ($info['estado'] == 'aprobado' ? 'success' : 'danger'); ?>">
-                                                <?php echo ucfirst($info['estado'] ?? 'No disponible'); ?>
-                                            </span></h5>
-                                    </div>
-                                </div>
-
-
-                                <!-- Botón de regreso -->
-                                <div class="mt-4 text-center">
-                                    <a href="pedidos.php" class="btn btn-outline-primary">
-                                        <i class="fas fa-arrow-left"></i> Volver a la lista de pedidos
-                                    </a>
-                                </div>
-                            </div>
-                        <?php endif; ?>
                         <div class="card-body">
-                            <table class="table table-striped">
-                                <thead class="table-dark">
-                                    <tr>
-                                        <th>ID Pedido</th>
-                                        <th>ID Usuario</th>
-                                        <th>Fecha</th>
-                                        <th>Total</th>
-                                        <th>Estado</th>
-                                        <th>Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php while ($pedido = $pedidos->fetch_assoc()): ?>
+                            <?php if ($pedidos->num_rows > 0): ?>
+                                <table class="table table-striped">
+                                    <thead class="table-dark">
                                         <tr>
-                                            <td><?php echo $pedido['id_pedido']; ?></td>
-                                            <td><?php echo $pedido['id_usuario']; ?></td>
-                                            <td><?php echo $pedido['fecha_pedido']; ?></td>
-                                            <td>$<?php echo number_format($pedido['total'], 2); ?></td>
-                                            <td><?php echo $pedido['estado']; ?></td>
-                                            <td>
-                                                <?php if ($pedido['estado'] == 'pendiente'): ?>
-                                                    <a class="btn btn-success btn-sm" href="pedidos.php?aprobar=<?php echo $pedido['id_pedido']; ?>">Aprobar</a>
-                                                    <a class="btn btn-danger btn-sm" href="pedidos.php?rechazar=<?php echo $pedido['id_pedido']; ?>">Rechazar</a>
-                                                <?php else: ?>
-                                                    Procesado
-                                                <?php endif; ?>
-                                                <a class="btn btn-primary btn-sm" href="pedidos.php?detalles=<?php echo $pedido['id_pedido']; ?>">Ver detalles</a>
-                                            </td>
+                                            <th>ID Pedido</th>
+                                            <th>ID Usuario</th>
+                                            <th>Fecha</th>
+                                            <th>Total</th>
+                                            <th>Estado</th>
+                                            <th>Acciones</th>
                                         </tr>
-                                    <?php endwhile; ?>
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody>
+                                        <?php while ($pedido = $pedidos->fetch_assoc()): ?>
+                                            <tr>
+                                                <td><?php echo $pedido['id_pedido']; ?></td>
+                                                <td><?php echo $pedido['id_usuario']; ?></td>
+                                                <td><?php echo date('d/m/Y H:i', strtotime($pedido['fecha_pedido'])); ?></td>
+                                                <td>$<?php echo number_format($pedido['total'], 2); ?></td>
+                                                <td>
+                                                    <span class="badge bg-<?php 
+                                                        echo $pedido['estado'] == 'pendiente' ? 'warning' : 
+                                                            ($pedido['estado'] == 'pagado' ? 'success' : 'danger'); 
+                                                    ?>">
+                                                        <?php echo ucfirst($pedido['estado']); ?>
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    
+                                                    <button class="btn btn-primary btn-sm" onclick="cargarDetallesPedido(<?php echo $pedido['id_pedido']; ?>)">Ver detalles</button>
+                                                </td>
+                                            </tr>
+                                        <?php endwhile; ?>
+                                    </tbody>
+                                </table>
+
+                                <!-- Paginación -->
+                                <nav aria-label="Page navigation">
+                                    <ul class="pagination justify-content-center">
+                                        <?php for ($i = 1; $i <= $total_paginas; $i++): ?>
+                                            <li class="page-item <?php echo $i == $pagina_actual ? 'active' : ''; ?>">
+                                                <a class="page-link" href="?pagina=<?php echo $i; ?>&fecha_inicio=<?php echo $fecha_inicio; ?>&fecha_fin=<?php echo $fecha_fin; ?>&busqueda=<?php echo urlencode($busqueda); ?>&estado=<?php echo urlencode($estado_filtro); ?>">
+                                                    <?php echo $i; ?>
+                                                </a>
+                                            </li>
+                                        <?php endfor; ?>
+                                    </ul>
+                                </nav>
+                            <?php else: ?>
+                                <div class="alert alert-info text-center">
+                                    No hay datos disponibles para el período seleccionado.
+                                </div>
+                            <?php endif; ?>
                         </div>
-
-
                     </div>
-
-
-
-
-
+                    <?php endif; ?>
                 </div>
             </main>
             <footer class="py-4 bg-light mt-auto">
@@ -259,6 +437,56 @@ $pedidos = $conexion->query("SELECT * FROM Pedidos ORDER BY fecha_pedido DESC");
     <script src="assets/demo/chart-bar-demo.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/simple-datatables@7.1.2/dist/umd/simple-datatables.min.js" crossorigin="anonymous"></script>
     <script src="js/datatables-simple-demo.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        // Inicializar datepicker
+        flatpickr("input[type=date]", {
+            dateFormat: "Y-m-d",
+            locale: "es"
+        });
+
+        // Función para cargar los detalles del pedido
+        function cargarDetallesPedido(idPedido) {
+            $.ajax({
+                url: 'obtener_detalles_pedido.php',
+                type: 'GET',
+                data: { id_pedido: idPedido },
+                success: function(response) {
+                    $('#modalDetalles .modal-body').html(response);
+                    $('#modalDetalles').modal('show');
+                },
+                error: function() {
+                    alert('Error al cargar los detalles del pedido');
+                }
+            });
+        }
+
+        // Función para confirmar acción
+        function confirmarAccion(accion, idPedido) {
+            if (confirm('¿Está seguro que desea ' + (accion === 'aprobar' ? 'aprobar' : 'rechazar') + ' este pedido?')) {
+                window.location.href = 'pedidos.php?' + accion + '=' + idPedido;
+            }
+        }
+    </script>
+
+    <!-- Modal de Detalles -->
+    <div class="modal fade" id="modalDetalles" tabindex="-1" aria-labelledby="modalDetallesLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalDetallesLabel">Detalles del Pedido</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- El contenido se cargará dinámicamente -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>

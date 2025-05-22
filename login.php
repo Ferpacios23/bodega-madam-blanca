@@ -9,14 +9,20 @@ if (isset($_POST['ingresar'])) {
 	$password = trim($_POST['password']);
 
 	// Consultar usuario en la base de datos
-	$query = $conexion->prepare("SELECT id_usuario, nombre, contrasena, id_rol FROM Usuarios WHERE email = ?");
+	$query = $conexion->prepare("SELECT id_usuario, nombre, contrasena, id_rol, estado FROM Usuarios WHERE email = ?");
 	$query->bind_param("s", $email);
 	$query->execute();
 	$result = $query->get_result();
 	$user = $result->fetch_assoc();
 
-	// Verificar credenciales
+	// Verificar credenciales y estado de la cuenta
 	if ($user && password_verify($password, $user['contrasena'])) {
+		// Verificar si la cuenta está activa
+		if ($user['estado'] == 0) {
+			header("Location: login.php?error=2");
+			exit;
+		}
+
 		// Guardar datos en la sesión
 		$_SESSION['usuario'] = $user['nombre'];
 		$_SESSION['id_usuario'] = $user['id_usuario'];
@@ -31,7 +37,7 @@ if (isset($_POST['ingresar'])) {
 				header("Location: ./TiendaDeUsuarios/tienda.php");
 				break;
 			case 3: // Jefe de Obra
-				header("Location: ./TiendaDeProyectos/index.php");
+				header("Location: ./TiendaDeProyectos/productosProyecto.php");
 				break;
 			default: // Rol no reconocido
 				echo "<script>alert('Rol no válido.'); window.location.href='login.php';</script>";
@@ -148,7 +154,13 @@ if (isset($_POST['registrar'])) {
 							<!-- Nuevo div para mostrar mensaje de error -->
 							<?php if (isset($_GET['error'])): ?>
 								<div class="error-message" style="color: red; text-align: center; margin-top: 10px;">
-									Usuario o contraseña incorrectos.
+									<?php 
+									if ($_GET['error'] == 1) {
+										echo "Usuario o contraseña incorrectos.";
+									} elseif ($_GET['error'] == 2) {
+										echo "Su cuenta ha sido deshabilitada. Por favor, contacte al administrador.";
+									}
+									?>
 								</div>
 							<?php endif; ?>
 
@@ -177,31 +189,34 @@ if (isset($_POST['registrar'])) {
 						<span class="title">Registro</span>
 						<form method="POST">
 							<div class="input-field">
-								<input type="text" name="nombre" placeholder="Nombre" >
-								<i class="uil uil-user"></i>
+								<input type="text" name="nombre" placeholder="Nombre" required>
+								<i class="uil uil-user icon"></i>
 							</div>
 							<div class="input-field">
-								<input type="email" name="email" placeholder="Correo electrónico" >
-								<i class="uil uil-envelope"></i>
+								<input type="email" name="email" placeholder="Correo electrónico" required>
+								<i class="uil uil-envelope icon"></i>
 							</div>
 							<div class="input-field">
-								<input type="password" name="contrasena" placeholder="Crea una contraseña" >
-								<i class="uil uil-lock"></i>
+								<input type="password" name="contrasena" placeholder="Crea una contraseña" required>
+								<i class="uil uil-lock icon"></i>
 							</div>
-
 							<div class="input-field">
-								<input type="text" name="telefono" placeholder="Teléfono" >
-								<i class="uil uil-phone"></i>
+								<input type="tel" name="telefono" placeholder="Teléfono" required>
+								<i class="uil uil-phone icon"></i>
 							</div>
 							<!-- Selección de rol -->
-							<select name="rol" id="rol" required onchange="toggleProyectoField()">
-								<option value="">Seleccione su rol</option>
-								<option value="2">Cliente</option>
-								<option value="3">Jefe de Obra</option>
-							</select>
+							<div class="input-field select-field">
+								<select name="rol" id="rol" required onchange="toggleProyectoField()">
+									<option value="">Seleccione su rol</option>
+									<option value="2">Cliente</option>
+									<option value="3">Jefe de Obra</option>
+								</select>
+								<i class="uil uil-user-circle icon"></i>
+							</div>
 							<!-- Campo para ID de proyecto -->
-							<div class="input-field">
-								<input type="number" name="id_proyecto" id="id_proyecto" placeholder="ID del Proyecto" style="display: none;">
+							<div class="input-field" id="proyecto-field" style="display: none;">
+								<input type="number" name="id_proyecto" id="id_proyecto" placeholder="ID del Proyecto">
+								<i class="uil uil-building icon"></i>
 							</div>
 							<div class="input-field button">
 								<input type="submit" name="registrar" value="Registrarse">
@@ -305,7 +320,7 @@ if (isset($_POST['registrar'])) {
 	<script>
 		function toggleProyectoField() {
 			const rol = document.getElementById('rol').value;
-			const proyectoField = document.getElementById('id_proyecto');
+			const proyectoField = document.getElementById('proyecto-field');
 			if (rol === '3') {
 				proyectoField.style.display = 'block';
 				proyectoField.required = true;

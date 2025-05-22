@@ -14,7 +14,18 @@ include("./conexion.php");
 // Obtener categorías para el select
 $categorias = $conexion->query("SELECT * FROM Categorias");
 
-$result_productos = $conexion->query("SELECT * FROM Productos");
+// Procesar búsqueda
+$busqueda = '';
+if (isset($_GET['buscar'])) {
+    $busqueda = trim($_GET['buscar']);
+}
+
+// Construir la consulta SQL
+$sql = "SELECT * FROM Productos";
+if (!empty($busqueda)) {
+    $sql .= " WHERE nombre_producto LIKE '%$busqueda%' OR descripcion LIKE '%$busqueda%'";
+}
+$result_productos = $conexion->query($sql);
 
 // Agregar un producto
 if (isset($_POST['agregar'])) {
@@ -29,16 +40,23 @@ if (isset($_POST['agregar'])) {
     $ruta = '../assets/img/' . basename($imagen);
     move_uploaded_file($_FILES['imagen']['tmp_name'], $ruta);
 
-    $conexion->query("INSERT INTO Productos (nombre_producto, descripcion, precio, stock, imagen_url, id_categoria) 
-                  VALUES ('$nombre', '$descripcion', '$precio', '$stock', '$ruta', '$id_categoria')");
+    $conexion->query("INSERT INTO Productos (nombre_producto, descripcion, precio, stock, imagen_url, id_categoria, estado) 
+                  VALUES ('$nombre', '$descripcion', '$precio', '$stock', '$ruta', '$id_categoria', 1)");
     echo "<script>alert('Registro exitoso.'); window.location.href='productos.php';</script>";
     exit();
 }
 
-// Eliminar un producto
-if (isset($_GET['eliminar'])) {
-    $id = $_GET['eliminar'];
-    $conexion->query("DELETE FROM Productos WHERE id_producto = $id");
+// Deshabilitar un producto
+if (isset($_GET['deshabilitar'])) {
+    $id = $_GET['deshabilitar'];
+    $conexion->query("UPDATE Productos SET estado = 0 WHERE id_producto = $id");
+    header('Location: productos.php');
+}
+
+// Habilitar un producto
+if (isset($_GET['habilitar'])) {
+    $id = $_GET['habilitar'];
+    $conexion->query("UPDATE Productos SET estado = 1 WHERE id_producto = $id");
     header('Location: productos.php');
 }
 
@@ -68,6 +86,14 @@ if (isset($_POST['actualizar'])) {
         $conexion->query("UPDATE Productos SET nombre_producto='$nombre', descripcion='$descripcion', precio='$precio', 
                       stock='$stock', id_categoria='$id_categoria' WHERE id_producto='$id_producto'");
     }
+    header('Location: productos.php');
+}
+
+// Actualizar stock de un producto
+if (isset($_POST['actualizar_stock'])) {
+    $id_producto = $_POST['id_producto'];
+    $cantidad = $_POST['cantidad'];
+    $conexion->query("UPDATE Productos SET stock = stock + $cantidad WHERE id_producto = $id_producto");
     header('Location: productos.php');
 }
 
@@ -105,116 +131,87 @@ $result = $conexion->query("SELECT * FROM Productos");
             <main>
                 <div class="container-fluid px-4">
                     <div class="card mb-4">
-                        <div class="card-header">
-                            <i class="fas fa-table me-1"></i>
-                            Gestionar Productos
-                        </div>
-                        <?php if (isset($producto_editar)): ?>
-                            <h3 class="text-center mt-4">Editar Producto</h3>
-                            <form method="POST" enctype="multipart/form-data" class="container p-4 bg-light rounded shadow">
-                                <input type="hidden" name="id_producto" value="<?php echo $producto_editar['id_producto']; ?>">
-
-                                <!-- Nombre del producto -->
-                                <div class="mb-3">
-                                    <label for="nombre" class="form-label">Nombre del Producto</label>
-                                    <input type="text" class="form-control" id="nombre" name="nombre" value="<?php echo $producto_editar['nombre_producto']; ?>" required>
-                                </div>
-
-                                <!-- Descripción -->
-                                <div class="mb-3">
-                                    <label for="descripcion" class="form-label">Descripción</label>
-                                    <textarea class="form-control" id="descripcion" name="descripcion" rows="3" required><?php echo $producto_editar['descripcion']; ?></textarea>
-                                </div>
-
-                                <!-- Precio -->
-                                <div class="mb-3">
-                                    <label for="precio" class="form-label">Precio</label>
-                                    <input type="number" class="form-control" id="precio" name="precio" value="<?php echo $producto_editar['precio']; ?>" step="0.01" required>
-                                </div>
-
-                                <!-- Stock -->
-                                <div class="mb-3">
-                                    <label for="stock" class="form-label">Stock</label>
-                                    <input type="number" class="form-control" id="stock" name="stock" value="<?php echo $producto_editar['stock']; ?>" required>
-                                </div>
-
-                                <!-- Categoría -->
-                                <div class="mb-3">
-                                    <label for="id_categoria" class="form-label">Categoría</label>
-                                    <select class="form-select" id="id_categoria" name="id_categoria" required>
-                                        <?php while ($cat = $categorias->fetch_assoc()) { ?>
-                                            <option value="<?php echo $cat['id_categoria']; ?>" <?php echo ($cat['id_categoria'] == $producto_editar['id_categoria']) ? 'selected' : ''; ?>>
-                                                <?php echo $cat['nombre_categoria']; ?>
-                                            </option>
-                                        <?php } ?>
-                                    </select>
-                                </div>
-
-                                <!-- Imagen -->
-                                <div class="mb-3">
-                                    <label for="imagen" class="form-label">Imagen del Producto (Opcional)</label>
-                                    <input type="file" class="form-control" id="imagen" name="imagen">
-                                </div>
-
-                                <!-- Botones -->
-                                <div class="d-flex justify-content-between">
-                                    <button type="submit" name="actualizar" class="btn btn-success">
-                                        <i class="fas fa-save"></i> Actualizar Producto
-                                    </button>
-                                    <a href="productos.php" class="btn btn-secondary">
-                                        <i class="fas fa-times"></i> Cancelar
-                                    </a>
-                                </div>
-                            </form>
-                        <?php else: ?>
-                            <h3 class="text-center mt-4">Agregar Producto</h3>
-                            <form method="POST" enctype="multipart/form-data" class="container p-4 bg-light rounded shadow">
-                                <!-- Nombre del producto -->
-                                <div class="mb-3">
-                                    <label for="nombre" class="form-label">Nombre del Producto</label>
-                                    <input type="text" class="form-control" id="nombre" name="nombre" placeholder="Nombre del producto" required>
-                                </div>
-
-                                <!-- Descripción -->
-                                <div class="mb-3">
-                                    <label for="descripcion" class="form-label">Descripción</label>
-                                    <textarea class="form-control" id="descripcion" name="descripcion" rows="3" placeholder="Descripción" required></textarea>
-                                </div>
-
-                                <!-- Precio -->
-                                <div class="mb-3">
-                                    <label for="precio" class="form-label">Precio</label>
-                                    <input type="number" class="form-control" id="precio" name="precio" placeholder="Precio" step="0.01" required>
-                                </div>
-
-                                <!-- Stock -->
-                                <div class="mb-3">
-                                    <label for="stock" class="form-label">Stock</label>
-                                    <input type="number" class="form-control" id="stock" name="stock" placeholder="Stock" required>
-                                </div>
-
-                                <!-- Categoría -->
-                                <div class="mb-3">
-                                    <label for="id_categoria" class="form-label">Categoría</label>
-                                    <select class="form-select" id="id_categoria" name="id_categoria" required>
-                                        <?php while ($cat = $categorias->fetch_assoc()) { ?>
-                                            <option value="<?php echo $cat['id_categoria']; ?>"><?php echo $cat['nombre_categoria']; ?></option>
-                                        <?php } ?>
-                                    </select>
-                                </div>
-
-                                <!-- Imagen -->
-                                <div class="mb-3">
-                                    <label for="imagen" class="form-label">Imagen del Producto</label>
-                                    <input type="file" class="form-control" id="imagen" name="imagen" required>
-                                </div>
-
-                                <!-- Botones -->
-                                <button type="submit" name="agregar" class="btn btn-primary">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="fas fa-table me-1"></i>
+                                Gestionar Productos
+                            </div>
+                            <div class="d-flex">
+                                <form method="GET" class="me-3">
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" name="buscar" placeholder="Buscar productos..." value="<?php echo htmlspecialchars($busqueda); ?>">
+                                        <button class="btn btn-outline-secondary" type="submit">
+                                            <i class="fas fa-search"></i>
+                                        </button>
+                                    </div>
+                                </form>
+                                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#agregarProductoModal">
                                     <i class="fas fa-plus"></i> Agregar Producto
                                 </button>
-                            </form>
-                        <?php endif; ?>
+                            </div>
+                        </div>
+
+                        <!-- Modal para Agregar Producto -->
+                        <div class="modal fade" id="agregarProductoModal" tabindex="-1" aria-labelledby="agregarProductoModalLabel" aria-hidden="true">
+                            <div class="modal-dialog modal-lg">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title" id="agregarProductoModalLabel">Agregar Nuevo Producto</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <form method="POST" enctype="multipart/form-data">
+                                            <!-- Nombre del producto -->
+                                            <div class="mb-3">
+                                                <label for="nombre" class="form-label">Nombre del Producto</label>
+                                                <input type="text" class="form-control" id="nombre" name="nombre" placeholder="Nombre del producto" required>
+                                            </div>
+
+                                            <!-- Descripción -->
+                                            <div class="mb-3">
+                                                <label for="descripcion" class="form-label">Descripción</label>
+                                                <textarea class="form-control" id="descripcion" name="descripcion" rows="3" placeholder="Descripción" required></textarea>
+                                            </div>
+
+                                            <!-- Precio -->
+                                            <div class="mb-3">
+                                                <label for="precio" class="form-label">Precio</label>
+                                                <input type="number" class="form-control" id="precio" name="precio" placeholder="Precio" step="0.01" required>
+                                            </div>
+
+                                            <!-- Stock -->
+                                            <div class="mb-3">
+                                                <label for="stock" class="form-label">Stock</label>
+                                                <input type="number" class="form-control" id="stock" name="stock" placeholder="Stock" required>
+                                            </div>
+
+                                            <!-- Categoría -->
+                                            <div class="mb-3">
+                                                <label for="id_categoria" class="form-label">Categoría</label>
+                                                <select class="form-select" id="id_categoria" name="id_categoria" required>
+                                                    <?php while ($cat = $categorias->fetch_assoc()) { ?>
+                                                        <option value="<?php echo $cat['id_categoria']; ?>"><?php echo $cat['nombre_categoria']; ?></option>
+                                                    <?php } ?>
+                                                </select>
+                                            </div>
+
+                                            <!-- Imagen -->
+                                            <div class="mb-3">
+                                                <label for="imagen" class="form-label">Imagen del Producto</label>
+                                                <input type="file" class="form-control" id="imagen" name="imagen" required>
+                                            </div>
+
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                                <button type="submit" name="agregar" class="btn btn-primary">
+                                                    <i class="fas fa-plus"></i> Agregar Producto
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
                         <div class="card-body">
                             <table class="table">
@@ -225,6 +222,7 @@ $result = $conexion->query("SELECT * FROM Productos");
                                         <th scope="col">Descripción</th>
                                         <th scope="col">Precio.Un</th>
                                         <th scope="col">Stock</th>
+                                        <th scope="col">Estado</th>
                                         <th scope="col">Acciones</th>
                                     </tr>
                                 </thead>
@@ -240,44 +238,175 @@ $result = $conexion->query("SELECT * FROM Productos");
                                                 } else {
                                                     echo $firowla['stock'] = 0;
                                                 }  ?></td>
-
-
                                             <td>
-                                                <a class="btn btn-warning" href="productos.php?editar=<?php echo $row['id_producto'] ?>   ">Editar </a>
-
-                                                <a class="btn btn-danger" href="productos.php?eliminar=<?php echo $row['id_producto'] ?>" onclick="return confirm('¿Estás seguro de eliminar este producto?');"">Eliminar</a>                                    
+                                                <?php if ($row['estado'] == 1): ?>
+                                                    <span class="badge bg-success">Activo</span>
+                                                <?php else: ?>
+                                                    <span class="badge bg-danger">Inactivo</span>
+                                                <?php endif; ?>
                                             </td>
-                                            </tr>
+                                            <td>
+                                                <div class="btn-group" role="group">
+                                                    <button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#editarProductoModal<?php echo $row['id_producto']; ?>" title="Editar">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                    <button type="button" class="btn btn-info btn-sm" data-bs-toggle="modal" data-bs-target="#actualizarStockModal<?php echo $row['id_producto']; ?>" title="Actualizar Stock">
+                                                        <i class="fas fa-boxes"></i>
+                                                    </button>
+                                                    <?php if ($row['estado'] == 1): ?>
+                                                        <a class="btn btn-danger btn-sm" href="productos.php?deshabilitar=<?php echo $row['id_producto'] ?>" onclick="return confirm('¿Estás seguro de deshabilitar este producto?');" title="Deshabilitar">
+                                                            <i class="fas fa-ban"></i>
+                                                        </a>
+                                                    <?php else: ?>
+                                                        <a class="btn btn-success btn-sm" href="productos.php?habilitar=<?php echo $row['id_producto'] ?>" onclick="return confirm('¿Estás seguro de habilitar este producto?');" title="Habilitar">
+                                                            <i class="fas fa-check"></i>
+                                                        </a>
+                                                    <?php endif; ?>
+                                                </div>
+                                            </td>
+                                        </tr>
 
-
-                                            <?php endwhile; ?>
-                                        </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </main>
-                <footer class=" py-4 bg-light mt-auto">
-                                                    <div class="container-fluid px-4">
-                                                        <div class="d-flex align-items-center justify-content-between small">
-                                                            <div class="text-muted">Copyright &copy; Your Website 2023</div>
-                                                            <div>
-                                                                <a href="#">Privacy Policy</a>
-                                                                &middot;
-                                                                <a href="#">Terms &amp; Conditions</a>
-                                                            </div>
-                                                        </div>
+                                        <!-- Modal de Edición para cada producto -->
+                                        <div class="modal fade" id="editarProductoModal<?php echo $row['id_producto']; ?>" tabindex="-1" aria-labelledby="editarProductoModalLabel<?php echo $row['id_producto']; ?>" aria-hidden="true">
+                                            <div class="modal-dialog modal-lg">
+                                                <div class="modal-content">
+                                                    <div class="modal-header">
+                                                        <h5 class="modal-title" id="editarProductoModalLabel<?php echo $row['id_producto']; ?>">Editar Producto</h5>
+                                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                                     </div>
-                                                    </footer>
+                                                    <div class="modal-body">
+                                                        <form method="POST" enctype="multipart/form-data">
+                                                            <input type="hidden" name="id_producto" value="<?php echo $row['id_producto']; ?>">
+                                                            
+                                                            <!-- Nombre del producto -->
+                                                            <div class="mb-3">
+                                                                <label for="nombre" class="form-label">Nombre del Producto</label>
+                                                                <input type="text" class="form-control" id="nombre" name="nombre" value="<?php echo htmlspecialchars($row['nombre_producto']); ?>" required>
+                                                            </div>
+
+                                                            <!-- Descripción -->
+                                                            <div class="mb-3">
+                                                                <label for="descripcion" class="form-label">Descripción</label>
+                                                                <textarea class="form-control" id="descripcion" name="descripcion" rows="3" required><?php echo htmlspecialchars($row['descripcion']); ?></textarea>
+                                                            </div>
+
+                                                            <!-- Precio -->
+                                                            <div class="mb-3">
+                                                                <label for="precio" class="form-label">Precio</label>
+                                                                <input type="number" class="form-control" id="precio" name="precio" value="<?php echo $row['precio']; ?>" step="0.01" required>
+                                                            </div>
+
+                                                            <!-- Stock -->
+                                                            <div class="mb-3">
+                                                                <label for="stock" class="form-label">Stock</label>
+                                                                <input type="number" class="form-control" id="stock" name="stock" value="<?php echo $row['stock']; ?>" required>
+                                                            </div>
+
+                                                            <!-- Categoría -->
+                                                            <div class="mb-3">
+                                                                <label for="id_categoria" class="form-label">Categoría</label>
+                                                                <select class="form-select" id="id_categoria" name="id_categoria" required>
+                                                                    <?php 
+                                                                    $categorias_edit = $conexion->query("SELECT * FROM Categorias");
+                                                                    while ($cat = $categorias_edit->fetch_assoc()) { 
+                                                                    ?>
+                                                                        <option value="<?php echo $cat['id_categoria']; ?>" <?php echo ($cat['id_categoria'] == $row['id_categoria']) ? 'selected' : ''; ?>>
+                                                                            <?php echo $cat['nombre_categoria']; ?>
+                                                                        </option>
+                                                                    <?php } ?>
+                                                                </select>
+                                                            </div>
+
+                                                            <!-- Imagen actual -->
+                                                            <div class="mb-3">
+                                                                <label class="form-label">Imagen Actual</label>
+                                                                <img src="<?php echo $row['imagen_url']; ?>" class="img-thumbnail" style="max-width: 200px;">
+                                                            </div>
+
+                                                            <!-- Nueva imagen -->
+                                                            <div class="mb-3">
+                                                                <label for="imagen" class="form-label">Nueva Imagen (opcional)</label>
+                                                                <input type="file" class="form-control" id="imagen" name="imagen">
+                                                            </div>
+
+                                                            <div class="modal-footer">
+                                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                                                <button type="submit" name="actualizar" class="btn btn-primary">
+                                                                    <i class="fas fa-save"></i> Guardar Cambios
+                                                                </button>
+                                                            </div>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Modal para Actualizar Stock -->
+                                        <div class="modal fade" id="actualizarStockModal<?php echo $row['id_producto']; ?>" tabindex="-1" aria-labelledby="actualizarStockModalLabel<?php echo $row['id_producto']; ?>" aria-hidden="true">
+                                            <div class="modal-dialog">
+                                                <div class="modal-content">
+                                                    <div class="modal-header">
+                                                        <h5 class="modal-title" id="actualizarStockModalLabel<?php echo $row['id_producto']; ?>">Actualizar Stock</h5>
+                                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                    </div>
+                                                    <div class="modal-body">
+                                                        <form method="POST">
+                                                            <input type="hidden" name="id_producto" value="<?php echo $row['id_producto']; ?>">
+                                                            
+                                                            <div class="mb-3">
+                                                                <label for="producto" class="form-label">Producto</label>
+                                                                <input type="text" class="form-control" value="<?php echo htmlspecialchars($row['nombre_producto']); ?>" readonly>
+                                                            </div>
+                                                            
+                                                            <div class="mb-3">
+                                                                <label for="stock_actual" class="form-label">Stock Actual</label>
+                                                                <input type="number" class="form-control" value="<?php echo $row['stock']; ?>" readonly>
+                                                            </div>
+                                                            
+                                                            <div class="mb-3">
+                                                                <label for="cantidad" class="form-label">Cantidad a Agregar</label>
+                                                                <input type="number" class="form-control" name="cantidad" min="1" required>
+                                                            </div>
+
+                                                            <div class="modal-footer">
+                                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                                                <button type="submit" name="actualizar_stock" class="btn btn-primary">
+                                                                    <i class="fas fa-save"></i> Actualizar Stock
+                                                                </button>
+                                                            </div>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    <?php endwhile; ?>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
-                    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
-                    <script src="../assets/js/scripts.js"></script>
-                    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.min.js" crossorigin="anonymous"></script>
-                    <script src="assets/demo/chart-area-demo.js"></script>
-                    <script src="assets/demo/chart-bar-demo.js"></script>
-                    <script src="https://cdn.jsdelivr.net/npm/simple-datatables@7.1.2/dist/umd/simple-datatables.min.js" crossorigin="anonymous"></script>
-                    <script src="js/datatables-simple-demo.js"></script>
+                </div>
+            </main>
+            <footer class=" py-4 bg-light mt-auto">
+                <div class="container-fluid px-4">
+                    <div class="d-flex align-items-center justify-content-between small">
+                        <div class="text-muted">Copyright &copy; Your Website 2023</div>
+                        <div>
+                            <a href="#">Privacy Policy</a>
+                            &middot;
+                            <a href="#">Terms &amp; Conditions</a>
+                        </div>
+                    </div>
+                </div>
+            </footer>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    <script src="../assets/js/scripts.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.min.js" crossorigin="anonymous"></script>
+    <script src="assets/demo/chart-area-demo.js"></script>
+    <script src="assets/demo/chart-bar-demo.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/simple-datatables@7.1.2/dist/umd/simple-datatables.min.js" crossorigin="anonymous"></script>
+    <script src="js/datatables-simple-demo.js"></script>
 </body>
 
 </html>

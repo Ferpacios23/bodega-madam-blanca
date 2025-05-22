@@ -11,23 +11,46 @@ if (!isset($_SESSION['id_rol']) || $_SESSION['id_rol'] != 1) {
     exit();
 }
 
+// Verificar si la columna estado existe
+$check_column = $conexion->query("SHOW COLUMNS FROM Categorias LIKE 'estado'");
+if ($check_column->num_rows == 0) {
+    $conexion->query("ALTER TABLE Categorias ADD COLUMN estado BOOLEAN DEFAULT TRUE");
+}
+
+// Obtener el término de búsqueda si existe
+$busqueda = isset($_GET['busqueda']) ? trim($_GET['busqueda']) : '';
+
+// Construir la consulta SQL
+$sql = "SELECT * FROM Categorias";
+if (!empty($busqueda)) {
+    $busqueda_param = '%' . $busqueda . '%';
+    $sql .= " WHERE nombre_categoria LIKE ? OR descripcion LIKE ?";
+    $stmt = $conexion->prepare($sql);
+    $stmt->bind_param("ss", $busqueda_param, $busqueda_param);
+    $stmt->execute();
+    $result = $stmt->get_result();
+} else {
+    $result = $conexion->query($sql);
+}
 
 // Agregar una categoría
 if (isset($_POST['agregar'])) {
     $nombre = $_POST['nombre'];
     $descripcion = $_POST['descripcion'];
-    $conexion->query("INSERT INTO Categorias (nombre_categoria, descripcion) VALUES ('$nombre', '$descripcion')");
+    $stmt = $conexion->prepare("INSERT INTO Categorias (nombre_categoria, descripcion, estado) VALUES (?, ?, TRUE)");
+    $stmt->bind_param("ss", $nombre, $descripcion);
+    $stmt->execute();
     header('Location: categorias.php');
 }
 
-// Eliminar una categoría
-if (isset($_GET['eliminar'])) {
-    $id = $_GET['eliminar'];
-    $conexion->query("DELETE FROM Categorias WHERE id_categoria = $id");
+// Cambiar estado de una categoría
+if (isset($_GET['cambiar_estado'])) {
+    $id = $_GET['cambiar_estado'];
+    $stmt = $conexion->prepare("UPDATE Categorias SET estado = NOT estado WHERE id_categoria = ?");
+    $stmt->bind_param("i", $id);
+    $stmt->execute();
     header('Location: categorias.php');
 }
-
-$result = $conexion->query("SELECT * FROM categorias");
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -60,25 +83,62 @@ $result = $conexion->query("SELECT * FROM categorias");
         <div id="layoutSidenav_content">
             <main>
                 <div class="container-fluid px-4">
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <i class="fas fa-table me-1"></i>
-                            Gestionar Categorías
-                        </div>
-                        <div class="card-body">
-                            <form method="POST" class="row g-3">
-                                <div class="col-md-4">
-                                    <input type="text" class="form-control" name="nombre" placeholder="Nombre de la categoría" required>
-                                </div>
-                                <div class="col-md-5">
-                                    <input type="text" class="form-control" name="descripcion" placeholder="Descripción" required>
-                                </div>
-                                <div class="col-md-3">
-                                    <button type="submit" name="agregar" class="btn btn-success w-100">
-                                        <i class="fas fa-save"></i> Agregar Categoría
+                    <!-- Barra de búsqueda -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <form method="GET" class="d-flex">
+                                <div class="input-group">
+                                    <input type="text" name="busqueda" class="form-control" placeholder="Buscar por nombre o descripción..." value="<?php echo htmlspecialchars($busqueda); ?>">
+                                    <button class="btn btn-primary" type="submit">
+                                        <i class="fas fa-search"></i> Buscar
                                     </button>
+                                    <?php if (!empty($busqueda)): ?>
+                                        <a href="categorias.php" class="btn btn-secondary">
+                                            <i class="fas fa-times"></i> Limpiar
+                                        </a>
+                                    <?php endif; ?>
                                 </div>
                             </form>
+                        </div>
+                    </div>
+
+                    <div class="card mb-4">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div >
+                                <i class="fas fa-table me-1"></i>
+                                Gestionar Categorías
+                            </div>
+                            <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#nuevaCategoriaModal">
+                                <i class="fas fa-plus me-2"></i>Nueva categoria
+                            </button>
+                        </div>
+
+                        <!-- Modal para Nueva categoria -->
+                        <div class="modal fade" id="nuevaCategoriaModal" tabindex="-1" aria-labelledby="nuevaCategoriaModalLabel" aria-hidden="true">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title" id="nuevaCategoriaModalLabel">Agregar Nueva categoria</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <form method="POST" id="formProyecto">
+                                            <div class="mb-3">
+                                                <input type="text" class="form-control" name="nombre" placeholder="Nombre de la categoría" required>
+                                            </div>
+                                            <div class="mb-3">
+                                                <textarea placeholder="Descripción" class="form-control" id="descripcion" name="descripcion" rows="3" required></textarea>
+                                            </div>
+                                        </form>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                        <button type="submit" form="formProyecto" name="agregar" class="btn btn-success">
+                                            <i class="fas fa-save"></i>Agregar Proyecto
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <div class="card-body">
                             <table class="table">
@@ -87,6 +147,7 @@ $result = $conexion->query("SELECT * FROM categorias");
                                         <th>ID</th>
                                         <th>Nombre</th>
                                         <th>Descripción</th>
+                                        <th>Estado</th>
                                         <th>Acciones</th>
                                     </tr>
                                 </thead>
@@ -96,16 +157,27 @@ $result = $conexion->query("SELECT * FROM categorias");
                                         <?php while ($row = $result->fetch_assoc()) { ?>
                                             <tr>
                                                 <td><?php echo $row['id_categoria']; ?></td>
-                                                <td><?php echo $row['nombre_categoria']; ?></td>
-                                                <td><?php echo $row['descripcion']; ?></td>
+                                                <td><?php echo htmlspecialchars($row['nombre_categoria']); ?></td>
+                                                <td><?php echo htmlspecialchars($row['descripcion']); ?></td>
                                                 <td>
-                                                    <a class="btn btn-danger" href="categorias.php?eliminar=<?php echo $row['id_categoria'] ?>" onclick="return confirm('¿Estás seguro de eliminar este usuario?');">Eliminar</a>
+                                                    <?php if ($row['estado'] == 1): ?>
+                                                        <span class="badge bg-success">Activa</span>
+                                                    <?php else: ?>
+                                                        <span class="badge bg-danger">Inactiva</span>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td>
+                                                    <a href="categorias.php?cambiar_estado=<?php echo $row['id_categoria']; ?>" 
+                                                       class="btn btn-sm <?php echo $row['estado'] == 1 ? 'btn-warning' : 'btn-success'; ?>"
+                                                       onclick="return confirm('¿Estás seguro de <?php echo $row['estado'] == 1 ? 'deshabilitar' : 'habilitar'; ?> esta categoría?');">
+                                                        <i class="fas <?php echo $row['estado'] == 1 ? 'fa-ban' : 'fa-check'; ?>"></i>
+                                                    </a>
                                                 </td>
                                             </tr>
                                         <?php } ?>
                                     <?php } else {
 
-                                        echo "<tr><td colspan='4'>No hay categorías disponibles</td></tr>";
+                                        echo "<tr><td colspan='5'>No hay categorías disponibles</td></tr>";
                                     } ?>
                                 </tbody>
 
